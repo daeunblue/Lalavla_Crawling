@@ -28,13 +28,15 @@ data = OrderedDict()
 # ex) 뷰티(big) > 스킨케어(mid) > 페이셜케어(small) > 스킨/토너(category)
 def get_product_info(big_list, mid_list, small_list, category):
   '''
-  number : String. 상품 고유번호
-  img : String (src). 대표 이미지 -> 복수 개일 수 있으므로 변경 필요 
-  brand : String. 브랜드 이름
+  category_list : list(String). 해당 상품의 중/소/카테고리 
   name : String. 상품 이름
+  number : String. 상품 고유번호
+  brand : String. 브랜드 이름
+  img : String (src). 대표 이미지 -> 복수 개일 수 있으므로 변경 필요 
+  product_img_list : list(String). 대표 이미지들의 리스트
+  item_img_list : list(String). 상품 설명 본문 이미지들의 리스트
   rate : String. 평점
   review_count : String (**건) 상품의 리뷰 개수
-  category_list : list(String). 해당 상품의 중/소/카테고리 
   is_discount : boolean. 할인 여부
   origin_price : String (**원). 정상가
   discount_price : String (**원). 할인 가격
@@ -116,12 +118,24 @@ def get_product_info(big_list, mid_list, small_list, category):
     # 품절일 때 option_count = 0이 돼서 가격이 안 나옴
     option_count = 0
 
+  try:
+    # 대표 이미지가 여러 개일 경우
+    product_imgs = driver.find_elements_by_class_name('prd_thumb_list > li > a')
+    product_img_list = [img.get_attribute('data-img') for img in product_imgs]  
+  except:
+    product_img_list = [img]
+
+  # 상품 본문 이미지를 차례로 크롤링
+  item_imgs = driver.find_elements_by_class_name('detail_area img')
+  item_img_list = [img.get_attribute('src') for img in item_imgs]
+
   data["category_list"] = category_list
   data["name"] = name
   data["number"] = number
   data["brand"] = brand
   data["img"] = img
-  data["brand"] = brand
+  data["product_img_list"] = product_img_list
+  data["item_img_list"] = item_img_list
   data["rate"] = rate
   data["review_count"] = review_count
   data["is_discount"] = is_discount
