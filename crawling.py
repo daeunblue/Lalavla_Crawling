@@ -24,7 +24,6 @@ url = 'https://www.oliveyoung.co.kr/store/display/getMCategoryList.do?dispCatNo=
 data = OrderedDict()
 
 
-
 # 대/중/소/카테고리를 넘김
 # ex) 뷰티(big) > 스킨케어(mid) > 페이셜케어(small) > 스킨/토너(category)
 def get_product_info(big_list, mid_list, small_list, category):
@@ -37,8 +36,8 @@ def get_product_info(big_list, mid_list, small_list, category):
   review_count : String (**건) 상품의 리뷰 개수
   category_list : list(String). 해당 상품의 중/소/카테고리 
   is_discount : boolean. 할인 여부
-  discount_price : String (**원). 할인 가격
   origin_price : String (**원). 정상가
+  discount_price : String (**원). 할인 가격
 
   옵션이 없는 단일 상품의 경우, 옵션 개수를 0개로 할 것인가 1개로 할 것인가
   그리고 옵션 이름 목록과 가격에 그냥 name과 price를 넣어야 하나?
@@ -126,8 +125,8 @@ def get_product_info(big_list, mid_list, small_list, category):
   data["rate"] = rate
   data["review_count"] = review_count
   data["is_discount"] = is_discount
-  data["discount_price"] = discount_price
   data["origin_price"] = origin_price
+  data["discount_price"] = discount_price
   data["option_count"] = option_count
   data["option_name_list"] = option_name_list
   data["option_price_list"] = option_price_list
@@ -146,25 +145,33 @@ def get_product_info(big_list, mid_list, small_list, category):
 
 
 
-for big_list in goods_list: # big_list는 goods_list에 String
-  for mid_list in goods_list[big_list]: # mid_list는 String
-    for small_list in goods_list[big_list][mid_list]: # small_list는 String
-      for category in goods_list[big_list][mid_list][small_list]: # category는 String      
-        driver.get(url+goods_list[big_list][mid_list][small_list][category])
-        driver.implicitly_wait(1)
-        count = 0 # count로 몇 번째 item의 정보를 가져올지 정함
+def load_goods_list():
+  for big_list in goods_list: # big_list는 goods_list에 String
+    for mid_list in goods_list[big_list]: # mid_list는 String
+      for small_list in goods_list[big_list][mid_list]: # small_list는 String
+        for category in goods_list[big_list][mid_list][small_list]: # category는 String      
+          driver.get(url+goods_list[big_list][mid_list][small_list][category])
+          driver.implicitly_wait(1)
+          count = 0 # count로 몇 번째 item의 정보를 가져올지 정함
         
-        # 상품을 감싼 태그를 빼냄. 24/36/48개
-        items = driver.find_elements_by_xpath('//li[@criteo-goods]')
+          # 상품을 감싼 태그를 빼냄. 24/36/48개
+          items = driver.find_elements_by_xpath('//li[@criteo-goods]')
 
-        for index in range(len(items)): 
-          # 개별 아이템을 고름
-          item = driver.find_element_by_xpath(
-            '//*[@id="Contents"]/ul[%s]/li[%s]/div/a' 
-            % ((count // 4) + 2, (count % 4) + 1)
-          )
-          item.click()
-          get_product_info(big_list, mid_list, small_list, category)
-          count += 1
-  
-driver.quit()
+          for index in range(len(items)): 
+            # 개별 아이템을 고름
+            item = driver.find_element_by_xpath(
+              '//*[@id="Contents"]/ul[%s]/li[%s]/div/a' 
+              % ((count // 4) + 2, (count % 4) + 1)
+            )
+            item.click()
+            get_product_info(big_list, mid_list, small_list, category)
+            count += 1
+
+
+if __name__ == '__main__':
+  print('crawling.py main 실행')
+  load_goods_list()  
+  driver.quit()
+
+else:
+  print('crawling.py is imported')
