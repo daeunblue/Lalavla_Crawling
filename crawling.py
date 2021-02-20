@@ -7,6 +7,7 @@
 import os
 import sys
 import json
+import pymysql.cursors
 from collections import OrderedDict
 from time import sleep
 from selenium import webdriver
@@ -17,12 +18,25 @@ goods_list = {
   'health_food_list': health_food_list, 
   'life_list': life_list
 }
+truth_table = {'True': 'Y', 'False': 'N'}
 
 # 크롬드라이버 위치 절대경로로 설정
 driver = webdriver.Chrome("C:\\Python38\\chromedriver")
 url = 'https://www.oliveyoung.co.kr/store/display/getMCategoryList.do?dispCatNo='
 data = OrderedDict()
 
+
+def is_optional_product(n):
+  return n > 0
+
+def is_discount_product(dis, org):
+  return dis != org
+
+def execute_sql(sqls):
+  for sql in sqls:
+    print(sql)
+    cursors.execute(sql)
+    conn.commit()
 
 # 대/중/소/카테고리를 넘김
 # ex) 뷰티(big) > 스킨케어(mid) > 페이셜케어(small) > 스킨/토너(category)
@@ -76,6 +90,9 @@ def get_product_info(big_list, mid_list, small_list, category):
     # 즉, 어느 경우든 discount_price가 해당 상품의 최종가
     origin_price = discount_price
     is_discount = False
+
+  origin_price = origin_price.replace(',', '')
+  discount_price = discount_price.replace(',', '')
   
   option_name_list = []
   option_price_list = []
@@ -154,10 +171,33 @@ def get_product_info(big_list, mid_list, small_list, category):
   except: # 디렉터리가 없을 때만 디렉터리를 만듦
     os.makedirs('./data/{0}/{1}/{2}/{3}'.format(big_list, mid_list, small_list, category))
 
+  sqls = []
+  sqls.append("insert into discount(is_discount, discount_price) \
+    values (%s, %d);" % (is_discount_product(int(discount_price), int(origin_price)), int(discount_price)))
+  sqls.append("insert into item(item_name, item_brand_id, item_img, item_price, category_name, is_optional, barcode, buy) \
+    values ('%s', 1, '%s', %d, '%s', %s, %d, %d);" \
+    % (name, img, int(discount_price), category_list[-1], is_optional_product(option_count), 1, 1))
+  for i in range(len(item_img_list)):
+    sqls.append("insert into item_img(item_id, item_img, item_order) \
+      values(%d, '%s', %d);" % (1, item_img_list[i], i + 1))
+  for l in range(len(product_img_list)):
+    sqls.append("insert into product_img(item_id, product_img) values(%d, '%s');" % 
+      (1, product_img_list[l]))
+
+  # 품절인지 알아내는 로직이 필요
+  if is_optional_product(option_count):
+    for m in range(option_count):
+      if option_count != len(option_img_list):
+        sqls.append("insert into item_option(item_id, item_option_img, item_option_name, is_soldout) \
+          values(%d, '%s', '%s', %s);" % (1, '', option_name_list[i], 'N'))
+      else:
+        sqls.append("insert into item_option(item_id, item_option_img, item_option_name, is_soldout) \
+          values(%d, '%s', '%s', %s);" % (1, option_img_list[i], option_name_list[i], 'N'))
+  
+  execute_sql(sqls)
+
   driver.back() # 뒤로가기
   sleep(0.5)
-
-
 
 def load_goods_list():
   for big_list in goods_list: # big_list는 goods_list에 String
@@ -184,6 +224,18 @@ def load_goods_list():
 
 if __name__ == '__main__':
   print('crawling.py main 실행')
+
+  # 이 부분은 DB 정보로 채울 것
+  conn = pymysql.connect(
+    host = '', # 로컬호스트
+    user = '',  # 유저
+    password = '',  # 비밀번호
+    db = '',  # 데이터베이스
+    charset = ''  # 인코딩 캐릭터셋
+  )
+  cursors = conn.cursor()
+  print('DB 연동 완료')
+
   load_goods_list()  
   driver.quit()
 
