@@ -13,8 +13,13 @@ data = OrderedDict()
 driver.get(url)
 driver.implicitly_wait(5)
 
+def execute_sql(sqls):
+  for sql in sqls:
+    print(sql)
+    cursors.execute(sql)
+    conn.commit()
+
 # DB 연동
-# 이 부분은 DB 정보로 채울 것
 conn = pymysql.connect(
   host = 'localhost', # 로컬호스트
   user = 'root',  # 유저
@@ -25,10 +30,10 @@ conn = pymysql.connect(
 cursors = conn.cursor()
 print('DB 연동 완료')
 
+
+
 # 네비게이션 바에서 ㄱ~ㅎ, ABC까지 하나씩 탭하기
 brand_btn_lists = driver.find_elements_by_class_name('nav-brdSrch > li')  # ㄱ~ABC
-# brand_btn_lists.insert(0, brand_btn_lists.pop())  # ABC를 앞으로 끌어내기
-# print([brand.text for brand in brand_btn_lists])
 count = 1 # 전체 브랜드 개수
 brand_dict = dict()
 
@@ -55,7 +60,7 @@ for i in range(1):
       brand_img = (driver.find_element_by_id("topvisual-image")).get_attribute('src')
       if brand_img == 'http://mimg.lalavla.com/resources':  # 이미지가 없을 경우 except 절로
         raise Exception                  
-      brand_dict[b_name] = [count, brand_img]
+      brand_dict[b_name] = [count, str(brand_img)]
     except: # 이미지가 없을 경우
       brand_dict[b_name] = [count, "X"]
 
@@ -70,15 +75,18 @@ for i in range(1):
     sqls = []
     for i in range(len(brand_dict)):
       sqls.append("insert into Brand(brand_name, brand_img) \
-        values (%s, %s);" % (str(b_name), str(brand_dict[b_name][1]))
-
-    execute_sql(sqls)
+        values ('%s', '%s');" % (str(b_name), str(brand_dict[b_name][1])))
+    
+  # excute sql
+  execute_sql(sqls)
 
   brand_btn_lists = driver.find_elements_by_class_name('nav-brdSrch > li')  # ㄱ~ABC
   sleep(0.5)
   driver.implicitly_wait(3)
-  
+
+
 driver.quit()
+
 
 
 
