@@ -78,7 +78,7 @@ for code in code_list:
     i_list = driver.find_elements_by_class_name('ct-product > .item')
     print(len(i_list))
 
-#    driver.get('https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000123879&dispCatNo=1000001000200060004&trackingCd=Drawer_Cat100000100020006_Cat')
+#   driver.get('https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000123879&dispCatNo=1000001000200060004&trackingCd=Drawer_Cat100000100020006_Cat')
 
     img = driver.find_element_by_id('mainImg')
     brand = driver.find_element_by_class_name('prd_brand')

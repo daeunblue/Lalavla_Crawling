@@ -3,6 +3,7 @@
 현재 카테고리 밑에 data를 반드시 만들고 구동하세요
 작성자 : github @dev-dain
 '''
+
 import os
 import sys
 import json
@@ -11,7 +12,7 @@ from collections import OrderedDict
 from time import sleep
 from selenium import webdriver
 
-driver = webdriver.Chrome("C:\\Python38\\chromedriver")
+driver = webdriver.Chrome("/Users/gimda-eun/Downloads/chromedriver")
 url = 'https://m.lalavla.com/service/main/mainBrand.html'
 data = OrderedDict()
 
@@ -22,7 +23,7 @@ brand_lists = driver.find_elements_by_class_name('list-brdSrchResult > li > a')
 brand_list = [brand.text for brand in brand_lists]
 for i, name in enumerate(brand_list):
   data[name] = i
-
+  
 driver.quit()
 
 try:
