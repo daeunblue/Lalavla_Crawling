@@ -53,7 +53,7 @@ def get_product_info(big_list, mid_list, small_list, category):
 
   sleep(1)
   print(big_list, mid_list, small_list)
-
+  category_list.append(blg_list +)
   ##  name, number, brand  가져오기
   name = (driver.find_element_by_class_name('prd-name')).text
   number = driver.find_element_by_xpath('/html/head/meta[16]').get_attribute('content')
@@ -88,32 +88,38 @@ def get_product_info(big_list, mid_list, small_list, category):
   # option_count ~ 끝까지
   option_name_list = []
   option_price_list = []
+  sold_out = 0
+  option_count = 0 
 
   try:
     # .top-option을 클릭해야 .optSelectMode 인지 바로 optEditMode인지 확인가능 --> 옵션 선택시 optEditMode로 넘어감
     driver.find_element_by_class_name('top-option').click()
     # 옵션이 많으면 optSelectMode // 단일 옵션인 경우 opt-only-one 라는 클래스가 있음, optEditMode (except로 넘어감)
-    driver.find_element_by_class_name('optSelectMode')
-    
-    # < 옵션 , 가격 정리 > 
-    ifoptions_name = driver.find_elements_by_class_name('prd-item > .txt')
-    options_price = driver.find_elements_by_class_name('prd-item > .right > .font-num-bold')
+    try:
+      driver.find_element_by_class_name('optSelectMode')
+      
+      # < 옵션 , 가격 정리 > 
+      options_name = driver.find_elements_by_class_name('prd-item > .txt')
+      options_price = driver.find_elements_by_class_name('prd-item > .right > .font-num-bold')
 
-    for (name, price) in zip(options_name, options_price):
-      option_name_list.append(name.text)
-      option_price_list.append(price.text)
+      for (name, price) in zip(options_name, options_price):
+        option_name_list.append(name.text)
+        option_price_list.append(price.text)
+      
+    except:
+      # 단일 옵션인 경우
+      # 왜 바로 리스트에 넣으면 글자수만큼 들어갈까.. 이것도 고민해봐야할듯? 
+      option_name = driver.find_element_by_class_name('option-view > .name').text
+      option_price = driver.find_element_by_class_name('option-view > .price-area > .font-num').text
+
+      option_name_list.append(option_name)
+      option_price_list.append(option_price)
     
+      option_count = len(option_price_list)
   except:
-    # 단일 옵션인 경우
-    # 왜 바로 리스트에 넣으면 글자수만큼 들어갈까.. 이것도 고민해봐야할듯? 
-    option_name = driver.find_element_by_class_name('option-view > .name').text
-    option_price = driver.find_element_by_class_name('option-view > .price-area > .font-num').text
+    # 제품 자체 품절 -> top-option.click 불가능
+    sold_out = 1 
 
-    option_name_list.append(option_name)
-    option_price_list.append(option_price)
-  
-    option_count = len(option_price_list)
-    
   # 안쓰는 것 : category_list , product_img_list, option_img_list
   # data["category_list"] = category_list
   data["name"] = name
