@@ -6,9 +6,10 @@ from collections import OrderedDict
 from time import sleep
 from selenium import webdriver
 from lalavla_category import category_list as cat_list
+import re
 
 # 크롬드라이버 위치 절대경로로 설정
-driver = webdriver.Chrome("C:\\Python38\\chromedriver")
+driver = webdriver.Chrome("/Users/gimda-eun/Downloads/chromedriver")
 url = 'https://m.lalavla.com/service/products/productCategory.html?CTG_ID='
 data = OrderedDict()
 
@@ -26,6 +27,35 @@ def execute_sql(sqls):
     cursors.execute(sql)
     conn.commit()
 
+def width_to_rate(width): 
+  if width == '100':
+    return 5.0
+  elif width == '80':
+    return 4.0
+  elif width == '60':
+    return 3.0
+  elif width == '40':
+    return 2.0
+  elif width == '20':
+    return 1.0
+  else : 
+    return 0.0
+
+def is_product_sold_out (option_list) :
+  product_soldout = []
+  for i in option_list:
+    try :
+      class_name = i.get_attribute('class')
+      if class_name == 'dis-out' :
+        product_soldout.append('Y')
+      else :
+        product_soldout.append('N')
+    except :
+      product_soldout.append('N')
+
+  return product_soldout
+
+
 # 대/중/소/카테고리를 넘김
 # ex) 스킨케어(big) > 기초스킨케어(mid) > 스킨/토너(small)
 def get_product_info(big_list, mid_list, small_list, category):
@@ -35,47 +65,61 @@ def get_product_info(big_list, mid_list, small_list, category):
   /number : String. 상품 고유번호
   /brand : String. 브랜드 이름
   /img : String (src). 대표 이미지 -> 복수 개일 수 있으므로 변경 필요 
-  product_img_list : list(String). 대표 이미지들의 리스트
+  /product_img_list : list(String). 대표 이미지들의 리스트
   /item_img_list : list(String). 상품 설명 본문 이미지들의 리스트
-  rate : String. 평점
-  review_count : String (**건) 상품의 리뷰 개수
+  /rate : String. 평점
+  /review_count : String (**건) 상품의 리뷰 개수
   /is_discount : boolean. 할인 여부
   /origin_price : String (**원). 정상가
   /discount_price : String (**원). 할인 가격
   옵션이 없는 단일 상품의 경우, 옵션 개수를 0개로 할 것인가 1개로 할 것인가
   그리고 옵션 이름 목록과 가격에 그냥 name과 price를 넣어야 하나?
   품절의 경우 옵션 가격은 얼마?
+  /option_lists : 옵션 품절 여부 (Y : 품절,  N : 품절 아님)
   /option_count : String. 옵션 개수
   /option_name_list : list(String). 옵션별 이름
   /option_price_list : list(String). 옵션별 가격
-  option_img_list : list(String). 옵션별 이미지 src
+
   '''
 
   sleep(1)
   print(big_list, mid_list, small_list)
-  category_list.append(blg_list +)
+  product_img_list = []
+  options_name_list = []
+  options_price_list = []
+  sold_out = 0
+  option_count = 0 
+  
   ##  name, number, brand  가져오기
   name = (driver.find_element_by_class_name('prd-name')).text
   number = driver.find_element_by_xpath('/html/head/meta[16]').get_attribute('content')
   brand = (driver.find_element_by_class_name('category')).text
   img = (driver.find_element_by_css_selector('#prdImgSwiper > div > img')).get_attribute('src')
-  ## product_img_list (대표이미지가 대부분 하나임) --> 필요없을듯
+
+  ## product_img_list 
+  product_imgs = driver.find_elements_by_css_selector('#prdImgSwiper > div > img')
+  product_img_list = [img.get_attribute('src') for img in product_imgs]
 
   ## item_img_list 
   item_imgs = (driver.find_elements_by_css_selector('#prdDtlTabImg img'))
-  item_img_list = [img.get_attribute('src') for img in item_imgs]
-  # 위의 코드 = 밑의 3줄 정규표현식 (연습하기!!!)
-  # i = []
-  # for i in item_img_list:
-  #   item_img_list.append(i.get_attribute('src'))
-  #   print(i.get_attribute('src'))
+  item_img_list = [itm_img.get_attribute('src') for itm_img in item_imgs]
+
+  # rate & review_count
+  width = (driver.find_element_by_class_name('tit-area .inner')).get_attribute('style')
+  re_width = re.split(' |%',width)
+  rate = width_to_rate(re_width[1])
+
+  org_review_count = driver.find_element_by_class_name('tit-area .num').text
+  review_re = org_review_count.replace('(',')')
+  review_count = review_split.replace(')','')
 
   ## is_discount ~ discount_price 
-  discount_price = (driver.find_element_by_class_name('price-last')).text.split('\n')[0]
+  discount_price = ((driver.find_element_by_class_name('price-last')).text.split('원')[0]).replace(',','')
+  
   # 할인 여부 확인
   try:
     # 할인 상품인 경우 .price-dis 요소가 있음
-    origin_price = (driver.find_element_by_class_name('price-dis')).text.split('\n')[0]
+    origin_price = ((driver.find_element_by_class_name('price-dis')).text.split('원')[0]).replace(',','')
     is_discount = True
   except:
     # 할인이 아닌 경우 discount_price가 곧 origin_price / 즉, 어느 경우든 discount_price가 해당 상품의 최종가
@@ -86,47 +130,50 @@ def get_product_info(big_list, mid_list, small_list, category):
   discount_price = discount_price.replace(',', '')
 
   # option_count ~ 끝까지
-  option_name_list = []
-  option_price_list = []
-  sold_out = 0
-  option_count = 0 
-
   try:
     # .top-option을 클릭해야 .optSelectMode 인지 바로 optEditMode인지 확인가능 --> 옵션 선택시 optEditMode로 넘어감
     driver.find_element_by_class_name('top-option').click()
-    # 옵션이 많으면 optSelectMode // 단일 옵션인 경우 opt-only-one 라는 클래스가 있음, optEditMode (except로 넘어감)
     try:
+      # 옵션이 많으면 optSelectMode // 단일 옵션인 경우 opt-only-one 라는 클래스가 있음, optEditMode (except로 넘어감)
       driver.find_element_by_class_name('optSelectMode')
-      
-      # < 옵션 , 가격 정리 > 
+
       options_name = driver.find_elements_by_class_name('prd-item > .txt')
       options_price = driver.find_elements_by_class_name('prd-item > .right > .font-num-bold')
 
-      for (name, price) in zip(options_name, options_price):
-        option_name_list.append(name.text)
-        option_price_list.append(price.text)
-      
+      options_name_list = [name.get_attribute('textContent') for name in options_name]
+      options_price_list = [price.get_attribute('textContent') for price in options_price]
+
+      option_count = len(option_name_list)
+
+      # 옵션 품절 여부 확인
+      option_list = driver.find_elements_by_css_selector('.option-list li')
+      option_lists = is_product_sold_out(option_list) 
+
     except:
-      # 단일 옵션인 경우
-      # 왜 바로 리스트에 넣으면 글자수만큼 들어갈까.. 이것도 고민해봐야할듯? 
-      option_name = driver.find_element_by_class_name('option-view > .name').text
-      option_price = driver.find_element_by_class_name('option-view > .price-area > .font-num').text
+      # 단일 옵션인 경우 , option_count = 1
+      option_name = (driver.find_element_by_class_name('option-view > .name')).get_attribute('textContent')
+      option_price = ((driver.find_element_by_class_name('option-view > .price-area > .font-num')).get_attribute('textContent')).replace(',','')
 
       option_name_list.append(option_name)
       option_price_list.append(option_price)
     
-      option_count = len(option_price_list)
+      option_count = 1
   except:
-    # 제품 자체 품절 -> top-option.click 불가능
+    # 제품 자체 품절 -> top-option.click 불가능 --> option관련 정보 제외하고는 다 가져가야함
     sold_out = 1 
+    
+    ##  name, number, brand  가져오기
+    name = (driver.find_element_by_class_name('prd-name')).text
+    number = driver.find_element_by_xpath('/html/head/meta[16]').get_attribute('content')
+    brand = (driver.find_element_by_class_name('category')).text
+    img = (driver.find_element_by_css_selector('#prdImgSwiper > div > img')).get_attribute('src')
 
-  # 안쓰는 것 : category_list , product_img_list, option_img_list
+  # 안쓴것 : category_list
   # data["category_list"] = category_list
   data["name"] = name
   data["number"] = number
   data["brand"] = brand
   data["img"] = img
-  # data["product_img_list"] = product_img_list
   data["item_img_list"] = item_img_list
   data["rate"] = rate
   data["review_count"] = review_count
@@ -136,7 +183,7 @@ def get_product_info(big_list, mid_list, small_list, category):
   data["option_count"] = option_count
   data["option_name_list"] = option_name_list
   data["option_price_list"] = option_price_list
-  # data["option_img_list"] = option_img_list
+  data["option_img_list"] = option_img_list
 
   try:
     with open(
