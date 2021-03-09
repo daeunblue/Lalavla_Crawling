@@ -58,9 +58,9 @@ def is_product_sold_out (option_list) :
 
 # 대/중/소/카테고리를 넘김
 # ex) 스킨케어(big) > 기초스킨케어(mid) > 스킨/토너(small)
-def get_product_info(big_list, mid_list, small_list, category):
+def get_product_info(big_list, mid_list, small_list):
   '''
-  category_list : list(String). 해당 상품의 중/소/카테고리 
+  category_list : list(String). 해당 상품의 중/소/카테고리 --> 어디서 필요한지..?
   /name : String. 상품 이름
   /number : String. 상품 고유번호
   /brand : String. 브랜드 이름
@@ -85,8 +85,8 @@ def get_product_info(big_list, mid_list, small_list, category):
   sleep(1)
   print(big_list, mid_list, small_list)
   product_img_list = []
-  options_name_list = []
-  options_price_list = []
+  option_name_list = []
+  option_price_list = []
   sold_out = 0
   option_count = 0 
   
@@ -111,7 +111,7 @@ def get_product_info(big_list, mid_list, small_list, category):
 
   org_review_count = driver.find_element_by_class_name('tit-area .num').text
   review_re = org_review_count.replace('(',')')
-  review_count = review_split.replace(')','')
+  review_count = review_re.replace(')','')
 
   ## is_discount ~ discount_price 
   discount_price = ((driver.find_element_by_class_name('price-last')).text.split('원')[0]).replace(',','')
@@ -140,10 +140,13 @@ def get_product_info(big_list, mid_list, small_list, category):
       options_name = driver.find_elements_by_class_name('prd-item > .txt')
       options_price = driver.find_elements_by_class_name('prd-item > .right > .font-num-bold')
 
-      options_name_list = [name.get_attribute('textContent') for name in options_name]
-      options_price_list = [price.get_attribute('textContent') for price in options_price]
+      option_name_list = [name.get_attribute('textContent') for name in options_name]
+      option_price_list = [price.get_attribute('textContent') for price in options_price]
 
       option_count = len(option_name_list)
+
+      print(option_name_list)
+
 
       # 옵션 품절 여부 확인
       option_list = driver.find_elements_by_css_selector('.option-list li')
@@ -183,47 +186,61 @@ def get_product_info(big_list, mid_list, small_list, category):
   data["option_count"] = option_count
   data["option_name_list"] = option_name_list
   data["option_price_list"] = option_price_list
-  data["option_img_list"] = option_img_list
 
   try:
     with open(
-      './data/{0}/{1}/{2}/{3}/{4}.json'.format(big_list, mid_list, small_list, category, number), 
+      './data/{0}/{1}/{2}/{3}.json'.format(big_list, mid_list, small_list, number), 
       'w', encoding='utf-8') as f:
       json.dump(data, f, ensure_ascii=False, indent="\t")
   except: # 디렉터리가 없을 때만 디렉터리를 만듦
-    os.makedirs('./data/{0}/{1}/{2}/{3}'.format(big_list, mid_list, small_list, category))
+    os.makedirs('./data/{0}/{1}/{2}'.format(big_list, mid_list, small_list))
 
   # sql문 생성 + insert
   sqls = []
   sqls.append("insert into discount(is_discount, discount_price) \
-    values (%s, %d);" % (is_discount_product(int(discount_price), int(origin_price)), int(discount_price)))
+  values (%s, %d);" % (is_discount_product(int(discount_price), int(origin_price)), int(discount_price)))
+
+  for i in range(len(item_img_list)):
+    sqls.append("insert into item_img(item_id, item_img, item_order) \
+      values(%d, '%s', %d);" % (1, item_img_list[i], i + 1))
 
   #$ category_name 이부분은 어떻게 해야하는지 (임의로 수정했음 -> 괜찮은가..? )
-  # sqls.append("insert into item(item_name, item_brand_id, item_img, item_price, category_name, is_optional, barcode, buy) \
-  #   values ('%s', 1, '%s', %d, '%s', %s, %d, %d);" \
-  #   % (name, img, int(discount_price), category_list[-1], is_optional_product(option_count), 1, 1))
-  # for i in range(len(item_img_list)):
-  #   sqls.append("insert into item_img(item_id, item_img, item_order) \
-  #     values(%d, '%s', %d);" % (1, item_img_list[i], i + 1))
+  sqls.append("insert into item(item_name, item_brand_id, item_img, item_price, category_name, is_optional, barcode, buy) \
+    values ('%s', 1, '%s', %d, '%s', '%s', %d, %d);" \
+    % (name, img, int(discount_price), small_list, is_optional_product(option_count), 1, 1))
   sqls.append("insert into item(item_name, item_brand_id, item_img, item_price, is_optional, barcode, buy) \
-    values ('%s', 1, '%s', %d, '%s', %s, %d, %d);" \
-    % (name, img, int(discount_price), is_optional_product(option_count), 1, 1))
+    values ('%s', 1, '%s', %d, '%s', %d, %d);" \
+    % (name, product_img_list, int(discount_price), is_optional_product(option_count), 1, 1))
+
+  # 품절인지 알아내는 로직이 필요
+  m = 0
+  if is_optional_product(option_count) == 'Y':
+    # 단일 옵션인지 확인
+    if option_count != 1:         
+      for m in range(option_count):
+        if option_lists[m] == 'Y':
+          sqls.append("insert into item_option(item_id, item_option_name, is_soldout) \
+            values(%d, '%s', '%s');" %(1, option_name_list[m],'Y'))
+        else:
+          sqls.append("insert into item_option(item_id, item_option_name, is_soldout) \
+            values(%d, '%s', '%s');" %(1, option_name_list[m],'N'))
+    else: # 단일 옵션인 경우
+      sqls.append("insert into item_option(item_id, item_option_name, is_soldout) \
+        values(%d, '%s', '%s');" %(1, option_name_list[m],'N'))
+
   for i in range(len(item_img_list)):
     sqls.append("insert into item_img(item_id, item_img, item_order) \
       values(%d, '%s', %d);" % (1, item_img_list[i], i + 1))
       
-  #$ 이부분 삭제해도 되는지? (옵션별 이미지 없음!)
+  # 본문 이미지
   for l in range(len(product_img_list)):
-    sqls.append("insert into product_img(item_id, product_img) values(%d, '%s');" % 
-      (1, product_img_list[l]))
+    sqls.append("insert into product_img(item_id, product_img) \
+      values(%d, '%s');" % (1, product_img_list[l]))
 
-  # 품절인지 알아내는 로직이 필요
-  if is_optional_product(option_count):
-    for m in range(option_count):
-        sqls.append("insert into item_option(item_id, item_option_name, is_soldout) \
-          values(%d, '%s',  %s);" % (1, option_name_list[i], 'N'))
-  
-  execute_sql(sqls)
+  # 카테고리 대, 중, 소 넘기기
+  sqls.append("insert into Category_detail(category_one, category_two, category_three) \
+    valus('%s', '%s', '%s');" %(big_list, mid_list, small_list))
+  # execute_sql(sqls)
 
   driver.back() # 뒤로가기
   sleep(0.5)
