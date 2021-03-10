@@ -7,9 +7,10 @@ from time import sleep
 from selenium import webdriver
 from lalavla_category import category_list as cat_list
 import re
+# -*- coding: UTF-8 -*-
 
 # 크롬드라이버 위치 절대경로로 설정
-driver = webdriver.Chrome("/Users/gimda-eun/Downloads/chromedriver")
+driver = webdriver.Chrome("C:\chromedriver")
 url = 'https://m.lalavla.com/service/products/productCategory.html?CTG_ID='
 data = OrderedDict()
 
@@ -20,7 +21,7 @@ def is_optional_product(n):
 
 def is_discount_product(dis, org):
   return dis != org
-
+  
 def execute_sql(sqls):
   for sql in sqls:
     print(sql)
@@ -115,16 +116,16 @@ def get_product_info(big_list, mid_list, small_list):
 
   ## is_discount ~ discount_price 
   discount_price = ((driver.find_element_by_class_name('price-last')).text.split('원')[0]).replace(',','')
-  
-  # 할인 여부 확인
-  try:
-    # 할인 상품인 경우 .price-dis 요소가 있음
-    origin_price = ((driver.find_element_by_class_name('price-dis')).text.split('원')[0]).replace(',','')
-    is_discount = True
-  except:
-    # 할인이 아닌 경우 discount_price가 곧 origin_price / 즉, 어느 경우든 discount_price가 해당 상품의 최종가
+  origin_price = ((driver.find_element_by_class_name('price-dis')).text.split('원')[0]).replace(',','')
+    
+  # 할인 여부 확인 (origin_price == '' -> 할인 X)
+  if origin_price == '':
     origin_price = discount_price
     is_discount = False
+  else :
+    is_discount = True
+
+
 
   origin_price = origin_price.replace(',', '')
   discount_price = discount_price.replace(',', '')
@@ -242,6 +243,11 @@ def get_product_info(big_list, mid_list, small_list):
     valus('%s', '%s', '%s');" %(big_list, mid_list, small_list))
   # execute_sql(sqls)
 
+  f = open("SQL.txt", 'a', encoding ="utf-8")
+
+  for i in sqls:
+    f.write(i)
+
   driver.back() # 뒤로가기
   sleep(0.5)
 
@@ -250,32 +256,29 @@ def get_product_info(big_list, mid_list, small_list):
 def load_cat_list():
   for big_list in cat_list: # big_list는 cat_list에 String
     for mid_list in cat_list[big_list]: # mid_list는 String
-      for small_list in cat_list[big_list][mid_list]: # small_list는 String
-        driver.get(url+cat_list[big_list][mid_list][small_list])
-        driver.implicitly_wait(3)
-        # 스크롤을 하지 않으면 not clickable 오류가 뜸
-        # 따라서, 매 루프마다 모니터 세로 화면의 절반만큼 스크롤을 내릴 수 있도록
-        # scroll_Height를 미리 구해 둠
-        scroll_height = 360.2
-        # scroll_height = driver.execute_script('return (window.innerHeight || document.body.clientHeight)')
-        # scroll_height //= 2
-        cats = driver.find_elements_by_class_name('swiper-slide > a')
-        # 카테고리 한글 이름이 필요할 경우 cats_name 쓸 것
-        cats_name = [cat.text for cat in cats]
+      driver.get(url+cat_list[big_list][mid_list]['all'])
+      driver.implicitly_wait(3)
+      # 스크롤을 하지 않으면 not clickable 오류가 뜸
+      # 따라서, 매 루프마다 모니터 세로 화면의 절반만큼 스크롤을 내릴 수 있도록
+      # scroll_Height를 미리 구해 둠
+      scroll_height = 360.2
+      
+      cats = driver.find_elements_by_class_name('swiper-slide > a')
+      # 카테고리 한글 이름이 필요할 경우 cats_name 쓸 것
+      cats_name = [cat.text for cat in cats]
 
-        # cat_index로 tiny_list의 몇 번째 카테고리를 클릭할지 정함
-        # ex) 전체 / 기초세트 / 스킨,토너 / 로션 / 에센스,세럼,앰플 / ...        
+      # cat_index로 tiny_list의 몇 번째 카테고리를 클릭할지 정함
+      # ex) 전체 / 기초세트 / 스킨,토너 / 로션 / 에센스,세럼,앰플 / ...        
+      if cats:
         for cat_index in range(len(cats)):
           items = driver.find_elements_by_class_name('prd-list > ul > li > a')          
           height = driver.execute_script('return (window.innerHeight || document.body.clientHeight)')
-          # height = scroll_height * 2
 
           for index in range(len(items)): 
             if cat_index:
               cats = driver.find_elements_by_class_name('swiper-slide > a')
               cats[cat_index].click()
               sleep(0.3)
-            # print(cat_index, index)       
 
             items = driver.find_elements_by_class_name('prd-list > ul > li > a')
             height += scroll_height 
@@ -285,10 +288,23 @@ def load_cat_list():
             items[index].click()
             driver.implicitly_wait(3)
 
-            get_product_info(big_list, mid_list, small_list)
+            get_product_info(big_list, mid_list, cats_name[cat_index])
+      
+      else:
+        items = driver.find_elements_by_class_name('prd-list > ul > li > a')
+        height = driver.execute_script('return (window.innerHeight || document.body.clientHeight)')
 
-            driver.back()  
-            sleep(0.2)
+        for index in range(len(items)):
+          items = driver.find_elements_by_class_name('prd-list > ul > li > a')
+          height += scroll_height 
+          driver.execute_script('window.scrollTo(0, ' + str(height) + ')')
+          sleep(0.5)
+
+          items[index].click()
+          driver.implicitly_wait(3)
+
+          get_product_info(big_list, mid_list, '전체')
+
 
 
 if __name__ == '__main__':
