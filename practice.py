@@ -14,6 +14,9 @@ driver.get(url)
 driver.implicitly_wait(5)
 
 def execute_sql(sqls):
+  with open('sql_all.txt', 'a') as f:
+    f.writelines(sqls)
+
   for sql in sqls:
     print(sql)
     cursors.execute(sql)
@@ -21,10 +24,10 @@ def execute_sql(sqls):
 
 # DB 연동
 conn = pymysql.connect(
-  host = 'localhost', # 로컬호스트
-  user = 'root',  # 유저
-  password = '',  # 비밀번호
-  db = 'Miky',  # 데이터베이스
+  host = '3.34.117.216', # 로컬호스트
+  user = 'dayang',  # 유저
+  password = 'dayang',  # 비밀번호
+  db = 'MEKI',  # 데이터베이스
   charset = 'utf8'  # 인코딩 캐릭터셋
 )
 cursors = conn.cursor()
@@ -37,8 +40,11 @@ brand_btn_lists = driver.find_elements_by_class_name('nav-brdSrch > li')  # ㄱ~
 count = 1 # 전체 브랜드 개수
 brand_dict = dict()
 
+
 # ㄱ~ㅎ, ABC까지 버튼이 ch_btn에 들어감
-for i in range(1):
+for i in range(len(brand_btn_lists)):
+  sqls = []
+  
   brand_btn_lists[i].click()  # 첨자 버튼 클릭
   sleep(0.3)
   driver.implicitly_wait(3)
@@ -72,10 +78,8 @@ for i in range(1):
     driver.implicitly_wait(3)
     
     # insert sql
-    sqls = []
-    for i in range(len(brand_dict)):
-      sqls.append("insert into Brand(brand_name, brand_img) \
-        values ('%s', '%s');" % (str(b_name), str(brand_dict[b_name][1])))
+    sqls.append("insert into Brand(brand_name, brand_img) \
+      values ('%s', '%s');" % (str(b_name), str(brand_dict[b_name][1])))
     
   # excute sql
   execute_sql(sqls)
@@ -90,11 +94,11 @@ driver.quit()
 
 
 
-# try:
-#   with open(
-#     './data/brand.json', 'w', encoding='utf-8') as f:
-#     json.dump(brand_dict, f, ensure_ascii=False, indent="\t")
-# except: # 디렉터리가 없을 때만 디렉터리를 만듦
-#   os.makedirs('./data')
+try:
+  with open(
+    './data/brand.json', 'w', encoding='utf-8') as f:
+    json.dump(brand_dict, f, ensure_ascii=False, indent="\t")
+except: # 디렉터리가 없을 때만 디렉터리를 만듦
+  os.makedirs('./data')
 
 print('done!')

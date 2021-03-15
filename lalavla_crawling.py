@@ -1,9 +1,3 @@
-'''
-올리브영 세부 카테고리에서 1페이지에 있는 상품들의 정보를 가져와
-상품 1개씩 순차적으로 data 디렉터리 밑 세부 카테고리 디렉터리에
-상품번호.json으로 저장하는 코드
-작성자 : github @dev-dain
-'''
 import os
 import sys
 import json
@@ -11,19 +5,13 @@ import pymysql.cursors
 from collections import OrderedDict
 from time import sleep
 from selenium import webdriver
-from category_list import beauty_list, health_food_list, life_list
-
-goods_list = {
-  'beauty_list': beauty_list, 
-  'health_food_list': health_food_list, 
-  'life_list': life_list
-}
-truth_table = {'True': 'Y', 'False': 'N'}
+from lalavla_category import category_list
 
 # 크롬드라이버 위치 절대경로로 설정
 driver = webdriver.Chrome("/Users/gimda-eun/Downloads/chromedriver")
-url = 'https://www.oliveyoung.co.kr/store/display/getMCategoryList.do?dispCatNo='
+url = 'https://m.lalavla.com/service/products/productCategory.html?CTG_ID=' 
 data = OrderedDict()
+
 
 
 def is_optional_product(n):
@@ -67,22 +55,27 @@ def get_product_info(big_list, mid_list, small_list, category):
 
   sleep(1)
 
-  number = (driver.find_element_by_class_name('prd_btn_area > .btnZzim')).get_attribute('data-ref-goodsno')
-  img = (driver.find_element_by_id('mainImg')).get_attribute('src')
-  brand = (driver.find_element_by_class_name('prd_brand')).text
-  name = (driver.find_element_by_class_name('prd_name')).text
+  number = driver.find_element_by_class_name('prd_btn_area > .btnZzim')\
+    .get_attribute('data-ref-goodsno')
+  # prdImgSwiper > div > img  // 상품 메인img가 그냥 img태그, id 도 따로 안주어져있음.. 
+  img = (driver.find_element_by_css_selector('#prdImgSwiper > div > img')).get_attribute('src')
+  brand = (driver.find_element_by_class_name('category')).text
+  name = (driver.find_element_by_class_name('prd-name')).text
+  # 66~67은 뒤에 [1][0]이 어떤의미인지..? 
+  # lalavla는 rapReview같은 창은 없고.. 따로 리뷰칸을 열어야하는데 열어도 수치가 적힌게 아니라 별모양 5개를 두고, style ="width:80%;"이런식으로 별 4개를 채움..
   review = (driver.find_element_by_id('repReview')).text.split('\n')[1]
   rate = review.split()[0]
   review_count = review.split()[1].strip('()')
-
+  
+  # lalavla는 화면에 category 요소가없음... 70~71은 적용불가..
   cat = driver.find_elements_by_class_name('loc_history > li > .cate_y')
   category_list = [c.text for c in cat]
   
-  discount_price = (driver.find_element_by_class_name('price-2')).text.split('\n')[0]
+  discount_price = (driver.find_element_by_class_name('price-last')).text.split('\n')[0]
 
   try:
-    # 할인 상품인 경우 .price-1 요소가 있음
-    origin_price = (driver.find_element_by_class_name('price-1')).text.split('\n')[0]
+    # 할인 상품인 경우 .price-dis 요소가 있음
+    origin_price = (driver.find_element_by_class_name('price-dis')).text.split('\n')[0]
     is_discount = True
   except:
     # 할인이 아닌 경우 discount_price가 곧 origin_price
@@ -96,13 +89,13 @@ def get_product_info(big_list, mid_list, small_list, category):
   option_name_list = []
   option_price_list = []
   option_img_list = [img]
-
+  
   try:
     # 옵션이 없는 경우 .prd_option_box 요소가 없음 (except로 넘어감)
     # .prd_option_box를 클릭해야 .option_value가 드러남
     driver.find_element_by_class_name('prd_option_box').click()
 
-    # 품절 상품인 경우 .dis-out 속성이 있음
+    # 품절 상품인 경우 .type1 soldout임
     options = driver.find_elements_by_class_name('type1 > a > div > .option_value')
 
     if not options: # 옵션에 상품 이미지가 없는 경우 .type1 없이 <li class> 태그임
@@ -133,7 +126,6 @@ def get_product_info(big_list, mid_list, small_list, category):
   except:
     # 품절일 때 option_count = 0이 돼서 가격이 안 나옴
     option_count = 0
-
 
   try:
     # 대표 이미지가 여러 개일 경우
