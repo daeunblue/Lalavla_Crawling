@@ -6,11 +6,11 @@ from collections import OrderedDict
 from time import sleep
 from selenium import webdriver
 from lalavla_category import category_list as cat_list
+from list_practice import lv_category_list as lv_list
 import re
-# -*- coding: UTF-8 -*-
 
 # 크롬드라이버 위치 절대경로로 설정
-driver = webdriver.Chrome("C:\chromedriver")
+driver = webdriver.Chrome("/Users/gimda-eun/Downloads/chromedriver")
 url = 'https://m.lalavla.com/service/products/productCategory.html?CTG_ID='
 data = OrderedDict()
 
@@ -21,7 +21,7 @@ def is_optional_product(n):
 
 def is_discount_product(dis, org):
   return dis != org
-  
+
 def execute_sql(sqls):
   for sql in sqls:
     print(sql)
@@ -83,14 +83,14 @@ def get_product_info(big_list, mid_list, small_list):
 
   '''
 
-  sleep(1)
+  sleep(2.0)
   print(big_list, mid_list, small_list)
   product_img_list = []
   option_name_list = []
   option_price_list = []
   sold_out = 0
   option_count = 0 
-  
+ 
   ##  name, number, brand  가져오기
   name = (driver.find_element_by_class_name('prd-name')).text
   number = driver.find_element_by_xpath('/html/head/meta[16]').get_attribute('content')
@@ -117,18 +117,14 @@ def get_product_info(big_list, mid_list, small_list):
   ## is_discount ~ discount_price 
   discount_price = ((driver.find_element_by_class_name('price-last')).text.split('원')[0]).replace(',','')
   origin_price = ((driver.find_element_by_class_name('price-dis')).text.split('원')[0]).replace(',','')
-    
-  # 할인 여부 확인 (origin_price == '' -> 할인 X)
-  if origin_price == '':
-    origin_price = discount_price
+  
+  # 할인 X -> price-dis 값 : ''
+  if origin_price == '': 
+    origin_price  = discount_price
     is_discount = False
+  # 할인 O 
   else :
-    is_discount = True
-
-
-
-  origin_price = origin_price.replace(',', '')
-  discount_price = discount_price.replace(',', '')
+    is_discount = True 
 
   # option_count ~ 끝까지
   try:
@@ -196,10 +192,19 @@ def get_product_info(big_list, mid_list, small_list):
   except: # 디렉터리가 없을 때만 디렉터리를 만듦
     os.makedirs('./data/{0}/{1}/{2}'.format(big_list, mid_list, small_list))
 
+  sql_cat_name = ''
+  for category_id, cat_name in lv_list.items(): #lv_list 아이템을 하나씩 접근해서, key, value를 각각 category_id, cat_name에 저장
+  if category_id == search_category:
+    sql_cat_name = cat_name
+    # print (cat_name)
+    
   # sql문 생성 + insert
   sqls = []
   sqls.append("insert into discount(is_discount, discount_price) \
   values (%s, %d);" % (is_discount_product(int(discount_price), int(origin_price)), int(discount_price)))
+
+  # item.category_name
+ 
 
   for i in range(len(item_img_list)):
     sqls.append("insert into item_img(item_id, item_img, item_order) \
@@ -208,7 +213,7 @@ def get_product_info(big_list, mid_list, small_list):
   #$ category_name 이부분은 어떻게 해야하는지 (임의로 수정했음 -> 괜찮은가..? )
   sqls.append("insert into item(item_name, item_brand_id, item_img, item_price, category_name, is_optional, barcode, buy) \
     values ('%s', 1, '%s', %d, '%s', '%s', %d, %d);" \
-    % (name, img, int(discount_price), small_list, is_optional_product(option_count), 1, 1))
+    % (name, img, int(discount_price), sql_cat_name, is_optional_product(option_count), 1, 1))
   sqls.append("insert into item(item_name, item_brand_id, item_img, item_price, is_optional, barcode, buy) \
     values ('%s', 1, '%s', %d, '%s', %d, %d);" \
     % (name, product_img_list, int(discount_price), is_optional_product(option_count), 1, 1))
@@ -239,21 +244,20 @@ def get_product_info(big_list, mid_list, small_list):
       values(%d, '%s');" % (1, product_img_list[l]))
 
   # 카테고리 대, 중, 소 넘기기
-  sqls.append("insert into Category_detail(category_one, category_two, category_three) \
-    valus('%s', '%s', '%s');" %(big_list, mid_list, small_list))
-  # execute_sql(sqls)
+  # sqls.append("insert into Category_detail(category_one, category_two, category_three) \
+  #   valus('%s', '%s', '%s');" %(big_list, mid_list, small_list))
 
-  f = open("SQL.txt", 'a', encoding ="utf-8")
-
+  f = open("sql.txt",'a')
   for i in sqls:
     f.write(i)
+    f.write('\n')
+  # execute_sql(sqls)
 
   driver.back() # 뒤로가기
-  sleep(0.5)
+  sleep(1.0)
 
   
-
-def load_cat_list():
+def load_cat_list():678
   for big_list in cat_list: # big_list는 cat_list에 String
     for mid_list in cat_list[big_list]: # mid_list는 String
       driver.get(url+cat_list[big_list][mid_list]['all'])
@@ -304,7 +308,6 @@ def load_cat_list():
           driver.implicitly_wait(3)
 
           get_product_info(big_list, mid_list, '전체')
-
 
 
 if __name__ == '__main__':
