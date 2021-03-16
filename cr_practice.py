@@ -14,10 +14,14 @@ driver = webdriver.Chrome("/Users/gimda-eun/Downloads/chromedriver")
 url = 'https://m.lalavla.com/service/products/productCategory.html?CTG_ID='
 data = OrderedDict()
 
-truth_table = {'True': 'Y', 'False': 'N'}
+# truth_table = {'True': 'T', 'False': 'F'}
 
 def is_optional_product(n):
-  return n > 0
+  if n > 0 :
+    return 'Y'
+  else :
+    return 'N'
+
 
 def is_discount_product(dis, org):
   return dis != org
@@ -82,9 +86,11 @@ def get_product_info(big_list, mid_list, small_list):
   /option_price_list : list(String). 옵션별 가격
 
   '''
+  category_list = big_list+ ' '+ mid_list + ' '+ small_list
 
-  sleep(2.0)
-  print(big_list, mid_list, small_list)
+  sleep(1.0)
+  print(category_list)
+
   product_img_list = []
   option_name_list = []
   option_price_list = []
@@ -97,6 +103,8 @@ def get_product_info(big_list, mid_list, small_list):
   brand = (driver.find_element_by_class_name('category')).text
   img = (driver.find_element_by_css_selector('#prdImgSwiper > div > img')).get_attribute('src')
 
+
+  
   ## product_img_list 
   product_imgs = driver.find_elements_by_css_selector('#prdImgSwiper > div > img')
   product_img_list = [img.get_attribute('src') for img in product_imgs]
@@ -105,11 +113,12 @@ def get_product_info(big_list, mid_list, small_list):
   item_imgs = (driver.find_elements_by_css_selector('#prdDtlTabImg img'))
   item_img_list = [itm_img.get_attribute('src') for itm_img in item_imgs]
 
-  # rate & review_count
+  # rate & review_count 
+  # Review 부분은 다음에 구현 (어떻게 얻어오는지만 이해하기)
   width = (driver.find_element_by_class_name('tit-area .inner')).get_attribute('style')
   re_width = re.split(' |%',width)
   rate = width_to_rate(re_width[1])
-
+  
   org_review_count = driver.find_element_by_class_name('tit-area .num').text
   review_re = org_review_count.replace('(',')')
   review_count = review_re.replace(')','')
@@ -117,6 +126,7 @@ def get_product_info(big_list, mid_list, small_list):
   ## is_discount ~ discount_price 
   discount_price = ((driver.find_element_by_class_name('price-last')).text.split('원')[0]).replace(',','')
   origin_price = ((driver.find_element_by_class_name('price-dis')).text.split('원')[0]).replace(',','')
+  
   
   # 할인 X -> price-dis 값 : ''
   if origin_price == '': 
@@ -144,7 +154,6 @@ def get_product_info(big_list, mid_list, small_list):
 
       print(option_name_list)
 
-
       # 옵션 품절 여부 확인
       option_list = driver.find_elements_by_css_selector('.option-list li')
       option_lists = is_product_sold_out(option_list) 
@@ -162,14 +171,10 @@ def get_product_info(big_list, mid_list, small_list):
     # 제품 자체 품절 -> top-option.click 불가능 --> option관련 정보 제외하고는 다 가져가야함
     sold_out = 1 
     
-    ##  name, number, brand  가져오기
-    name = (driver.find_element_by_class_name('prd-name')).text
-    number = driver.find_element_by_xpath('/html/head/meta[16]').get_attribute('content')
-    brand = (driver.find_element_by_class_name('category')).text
-    img = (driver.find_element_by_css_selector('#prdImgSwiper > div > img')).get_attribute('src')
+  
 
-  # 안쓴것 : category_list
-  # data["category_list"] = category_list
+  # json data
+  data["category_list"] = category_list
   data["name"] = name
   data["number"] = number
   data["brand"] = brand
@@ -192,31 +197,38 @@ def get_product_info(big_list, mid_list, small_list):
   except: # 디렉터리가 없을 때만 디렉터리를 만듦
     os.makedirs('./data/{0}/{1}/{2}'.format(big_list, mid_list, small_list))
 
+  search_category = big_list + ' ' + mid_list + ' ' + small_list
   sql_cat_name = ''
   for category_id, cat_name in lv_list.items(): #lv_list 아이템을 하나씩 접근해서, key, value를 각각 category_id, cat_name에 저장
-  if category_id == search_category:
-    sql_cat_name = cat_name
-    # print (cat_name)
+    if category_id == search_category:
+      sql_cat_name = cat_name
+      # print (cat_name)
     
   # sql문 생성 + insert
   sqls = []
-  sqls.append("insert into discount(is_discount, discount_price) \
-  values (%s, %d);" % (is_discount_product(int(discount_price), int(origin_price)), int(discount_price)))
+  sqls.append("insert into Discount(is_discount, discount_price) \
+  values ('%s', %d);" % (is_discount_product(int(discount_price), int(origin_price)), int(discount_price)))
+
+
+  # select문 사용해서 brand.name을 찾아서 brand_id 값 받아와서 item_brand_id 에 넣는 로직
+  # cursors.fetchone()은 결과 값을 tuple 형태로 반환 -> brand_id_tuple[0] 이 우리가 필요한 실제 값 --> int 타입이기 떄문에 형변환 필요 X
+  cursors.execute("select brand_id from Brand where brand_name = '"+brand+"';")
+  brand_id_tuple = cursors.fetchone()
+  brand_id = brand_id_tuple[0]
 
   # item.category_name
- 
-
   for i in range(len(item_img_list)):
-    sqls.append("insert into item_img(item_id, item_img, item_order) \
-      values(%d, '%s', %d);" % (1, item_img_list[i], i + 1))
+    sqls.append("insert into Item_img(item_img, item_order) \
+      values('%s', %d);" % ( item_img_list[i], i + 1))
 
-  #$ category_name 이부분은 어떻게 해야하는지 (임의로 수정했음 -> 괜찮은가..? )
-  sqls.append("insert into item(item_name, item_brand_id, item_img, item_price, category_name, is_optional, barcode, buy) \
-    values ('%s', 1, '%s', %d, '%s', '%s', %d, %d);" \
-    % (name, img, int(discount_price), sql_cat_name, is_optional_product(option_count), 1, 1))
-  sqls.append("insert into item(item_name, item_brand_id, item_img, item_price, is_optional, barcode, buy) \
-    values ('%s', 1, '%s', %d, '%s', %d, %d);" \
-    % (name, product_img_list, int(discount_price), is_optional_product(option_count), 1, 1))
+  # 제품 자체가 품절인지 확인하는 로직 필요
+  if sold_out == 0 :
+    sqls.append("insert into Item(item_name, item_brand_id, item_img, item_price, category_name, is_optional, barcode, buy, item_no, is_soldout) \
+      values ('%s', %d, '%s', %d, '%s', '%s', %d, %d, '%s','%s');" % (name, brand_id, img, int(discount_price), sql_cat_name, is_optional_product(option_count), 1, 1, number, 'N'))
+  else:
+    sqls.append("insert into Item(item_name, item_brand_id, item_img, item_price, category_name, is_optional, barcode, buy, item_no, is_soldout) \
+      values ('%s', %d, '%s', %d, '%s', '%s', %d, %d, '%s','%s');" % (name, brand_id, img, int(discount_price), sql_cat_name, is_optional_product(option_count), 1, 1, number, 'N'))
+  
 
   # 품절인지 알아내는 로직이 필요
   m = 0
@@ -225,23 +237,24 @@ def get_product_info(big_list, mid_list, small_list):
     if option_count != 1:         
       for m in range(option_count):
         if option_lists[m] == 'Y':
-          sqls.append("insert into item_option(item_id, item_option_name, is_soldout) \
-            values(%d, '%s', '%s');" %(1, option_name_list[m],'Y'))
+          sqls.append("insert into Item_option(item_no, item_option_name, is_soldout) \
+            values('%s', '%s', '%s');" %(number, option_name_list[m],'Y'))
         else:
-          sqls.append("insert into item_option(item_id, item_option_name, is_soldout) \
-            values(%d, '%s', '%s');" %(1, option_name_list[m],'N'))
+          sqls.append("insert into Item_option(item_no, item_option_name, is_soldout) \
+            values('%s', '%s', '%s');" %(number, option_name_list[m],'N'))
     else: # 단일 옵션인 경우
-      sqls.append("insert into item_option(item_id, item_option_name, is_soldout) \
-        values(%d, '%s', '%s');" %(1, option_name_list[m],'N'))
+      sqls.append("insert into Item_option(item_no, item_option_name, is_soldout) \
+        values('%s', '%s', '%s');" %(number, option_name_list[m],'N'))
+
 
   for i in range(len(item_img_list)):
-    sqls.append("insert into item_img(item_id, item_img, item_order) \
-      values(%d, '%s', %d);" % (1, item_img_list[i], i + 1))
+    sqls.append("insert into Item_img(item_no, item_img, item_order) \
+      values('%s', '%s', %d);" % (number, item_img_list[i], i + 1))
       
   # 본문 이미지
   for l in range(len(product_img_list)):
-    sqls.append("insert into product_img(item_id, product_img) \
-      values(%d, '%s');" % (1, product_img_list[l]))
+    sqls.append("insert into Product_img(item_no, product_img) \
+      values('%s', '%s');" % (number, product_img_list[l]))
 
   # 카테고리 대, 중, 소 넘기기
   # sqls.append("insert into Category_detail(category_one, category_two, category_three) \
@@ -251,13 +264,14 @@ def get_product_info(big_list, mid_list, small_list):
   for i in sqls:
     f.write(i)
     f.write('\n')
-  # execute_sql(sqls)
+
+  execute_sql(sqls)
 
   driver.back() # 뒤로가기
   sleep(1.0)
 
   
-def load_cat_list():678
+def load_cat_list():
   for big_list in cat_list: # big_list는 cat_list에 String
     for mid_list in cat_list[big_list]: # mid_list는 String
       driver.get(url+cat_list[big_list][mid_list]['all'])
@@ -313,16 +327,15 @@ def load_cat_list():678
 if __name__ == '__main__':
   print('crawling.py main 실행')
 
-  # 이 부분은 DB 정보로 채울 것
-  # conn = pymysql.connect(
-  #   host = '', # 로컬호스트
-  #   user = '',  # 유저
-  #   password = '',  # 비밀번호
-  #   db = '',  # 데이터베이스
-  #   charset = ''  # 인코딩 캐릭터셋
-  # )
-  # cursors = conn.cursor()
-  # print('DB 연동 완료')
+  conn = pymysql.connect(
+    host = 'localhost', # 로컬호스트
+    user = 'root',  # 유저
+    password = '',  # 비밀번호
+    db = 'MEKI',  # 데이터베이스
+    charset = 'utf8'  # 인코딩 캐릭터셋
+  )
+  cursors = conn.cursor()
+  print('DB 연동 완료')
 
   load_cat_list()  
   driver.quit()

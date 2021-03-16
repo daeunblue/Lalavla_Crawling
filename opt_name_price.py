@@ -175,84 +175,14 @@ def get_product_info(big_list, mid_list, small_list):
     brand = (driver.find_element_by_class_name('category')).text
     img = (driver.find_element_by_css_selector('#prdImgSwiper > div > img')).get_attribute('src')
 
-  # 안쓴것 : category_list
-  # data["category_list"] = category_list
-  data["name"] = name
-  data["number"] = number
-  data["brand"] = brand
-  data["img"] = img
-  data["item_img_list"] = item_img_list
-  data["rate"] = rate
-  data["review_count"] = review_count
-  data["is_discount"] = is_discount
-  data["origin_price"] = origin_price
-  data["discount_price"] = discount_price
-  data["option_count"] = option_count
-  data["option_name_list"] = option_name_list
-  data["option_price_list"] = option_price_list
-
-  # try:
-  #   with open(
-  #     './data/{0}/{1}/{2}/{3}.json'.format(big_list, mid_list, small_list, number), 
-  #     'w', encoding='utf-8') as f:
-  #     json.dump(data, f, ensure_ascii=False, indent="\t")
-  # except: # 디렉터리가 없을 때만 디렉터리를 만듦
-  #   os.makedirs('./data/{0}/{1}/{2}'.format(big_list, mid_list, small_list))
-
-  # sql문 생성 + insert
-  sqls = []
-  sqls.append("insert into discount(is_discount, discount_price) \
-  values (%s, %d);" % (is_discount_product(int(discount_price), int(origin_price)), int(discount_price)))
-
-  for i in range(len(item_img_list)):
-    sqls.append("insert into item_img(item_id, item_img, item_order) \
-      values(%d, '%s', %d);" % (1, item_img_list[i], i + 1))
-
-  #$ category_name 이부분은 어떻게 해야하는지 (임의로 수정했음 -> 괜찮은가..? )
-  sqls.append("insert into item(item_name, item_brand_id, item_img, item_price, category_name, is_optional, barcode, buy) \
-    values ('%s', 1, '%s', %d, '%s', '%s', %d, %d);" \
-    % (name, img, int(discount_price), small_list, is_optional_product(option_count), 1, 1))
-  sqls.append("insert into item(item_name, item_brand_id, item_img, item_price, is_optional, barcode, buy) \
-    values ('%s', 1, '%s', %d, '%s', %d, %d);" \
-    % (name, product_img_list, int(discount_price), is_optional_product(option_count), 1, 1))
-
-  # 품절인지 알아내는 로직이 필요
-  m = 0
-  if is_optional_product(option_count) == 'Y':
-    # 단일 옵션인지 확인
-    if option_count != 1:         
-      for m in range(option_count):
-        if option_lists[m] == 'Y':
-          sqls.append("insert into item_option(item_id, item_option_name, is_soldout) \
-            values(%d, '%s', '%s');" %(1, option_name_list[m],'Y'))
-        else:
-          sqls.append("insert into item_option(item_id, item_option_name, is_soldout) \
-            values(%d, '%s', '%s');" %(1, option_name_list[m],'N'))
-    else: # 단일 옵션인 경우
-      sqls.append("insert into item_option(item_id, item_option_name, is_soldout) \
-        values(%d, '%s', '%s');" %(1, option_name_list[m],'N'))
-
-  for i in range(len(item_img_list)):
-    sqls.append("insert into item_img(item_id, item_img, item_order) \
-      values(%d, '%s', %d);" % (1, item_img_list[i], i + 1))
-      
-  # 본문 이미지
-  for l in range(len(product_img_list)):
-    sqls.append("insert into product_img(item_id, product_img) \
-      values(%d, '%s');" % (1, product_img_list[l]))
-
-  # 카테고리 대, 중, 소 넘기기
-  # sqls.append("insert into Category_detail(category_one, category_two, category_three) \
-  #   valus('%s', '%s', '%s');" %(big_list, mid_list, small_list))
-
-  f = open("sql.txt",'a')
-  for i in sqls:
-    f.write(i)
-    f.write('\n')
-  # execute_sql(sqls)
+  
+  cursors.execute("select brand_id from Brand where brand_name = '"+brand+"';")
+  brand_id = cursors.fetchone()
+  print(type(brand_id[0]))
+  print( brand_id[0])
 
   driver.back() # 뒤로가기
-  sleep(1.0)
+  sleep(0.5)
 
   
 def load_cat_list():
@@ -311,16 +241,15 @@ def load_cat_list():
 if __name__ == '__main__':
   print('crawling.py main 실행')
 
-  # 이 부분은 DB 정보로 채울 것
-  # conn = pymysql.connect(
-  #   host = '', # 로컬호스트
-  #   user = '',  # 유저
-  #   password = '',  # 비밀번호
-  #   db = '',  # 데이터베이스
-  #   charset = ''  # 인코딩 캐릭터셋
-  # )
-  # cursors = conn.cursor()
-  # print('DB 연동 완료')
+  conn = pymysql.connect(
+    host = 'localhost', # 로컬호스트
+    user = 'root',  # 유저
+    password = '',  # 비밀번호
+    db = 'MEKI',  # 데이터베이스
+    charset = 'utf8'  # 인코딩 캐릭터셋
+  )
+  cursors = conn.cursor()
+  print('DB 연동 완료')
 
   load_cat_list()  
   driver.quit()
