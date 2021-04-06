@@ -262,7 +262,7 @@ for q in range(option_count):
 
   # item 테이블
   sqls.append("insert into item(barcode, discount_price, is_optional, is_testable, item_img, item_name, item_price, stock_quantity, brand_id) \
-       value(%d, %d, '%s', '%s', '%s', '%s', %d, %d, %d);" %(1, int(discount_price), is_optional_product(option_count), 1, img, name, int(discount_price),int(stock_st) brand_id))
+       values(%d, %d, '%s', '%s', '%s', '%s', %d, %d, %d);" %(1, int(discount_price), is_optional_product(option_count), 1, img, name, int(discount_price),int(stock_st) brand_id))
 
   # item_id 가져오기 (int)
   try:
@@ -277,7 +277,7 @@ for q in range(option_count):
 
   # category_item 테이블
   sqls.append("insert into category_item(category_id, item_id)\
-      value(%d, %d);" %(category_id, item_id))
+      values(%d, %d);" %(category_id, item_id))
 
   # item_img 테이블 (상품 대표 이미지)
   for l in range(len(item_img_list)):
