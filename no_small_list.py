@@ -1,4 +1,4 @@
-small_list = [
+small_lists = [
   'men skin_body',
   'men shaving',
   'men makeup',  

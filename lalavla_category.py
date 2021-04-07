@@ -89,7 +89,7 @@ category_list = {
       'all': 'C060300',
       'women': 'C060300',
       'cream_strip': 'C060300',
-      'deodorant': 'C060300'
+      'deodorant': 'C060300' #deodrant안긁어와짐 이부분 수정 필요
     },
     'hand_foot': {
       'all': 'C060400',

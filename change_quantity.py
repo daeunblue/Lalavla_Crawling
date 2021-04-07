@@ -16,17 +16,17 @@ result = []
 
 # item_option 테이블에서 item_id가 같은 요소들의 합을 구해서 item.stock_quantity 수량 바꾸기
 try:
-  for i in range(1,307):
+  for i in range(745,1512):
     result = 0
     cursors.execute("select sum(stock_quantity) from item_option where item_id = " + str(i) +";")
     conn.commit()
     item_stock_quantity_tuple = cursors.fetchone()
     if item_stock_quantity_tuple[0] != None:
-      print("진입")
       item_stock_quantity = item_stock_quantity_tuple[0]
       sql = 'update item set stock_quantity =  %s where item_id = %s;' %(str(item_stock_quantity),str(i))
       cursors.execute(sql)
       conn.commit()
+      print(i)
       print(item_stock_quantity)
     else:
       continue

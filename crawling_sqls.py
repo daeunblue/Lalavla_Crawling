@@ -7,16 +7,25 @@ from time import sleep
 from selenium import webdriver
 from lalavla_category import category_list as cat_list
 from lalavla_category_list import lv_category_list as lv_list
+from no_small_list import small_lists
 import re
 
 # 크롬드라이버 위치 절대경로로 설정
-driver = webdriver.Chrome("/Users/gimda-eun/Downloads/chromedriver")
+driver = webdriver.Chrome("C:\chromedriver")
 url = 'https://m.lalavla.com/service/products/productCategory.html?CTG_ID='
 data = OrderedDict()
 
+def write_sql(sqls):
+  f = open("sql2.txt",'a',encoding='utf-8')
+  for i in sqls:
+    f.write(i)
+    f.write('\n')
 
 def is_optional_product(n):
-  return n > 0
+  if n == 1:
+    return 'N'
+  else:
+    return 'Y'
 
 def is_discount_product(dis, org):
   return dis != org
@@ -101,6 +110,8 @@ def get_product_info(big_list, mid_list, small_list):
   product_imgs = (driver.find_elements_by_css_selector('#prdDtlTabImg img'))
   product_img_list = [itm_img.get_attribute('src') for itm_img in product_imgs]
 
+  print(len(product_img_list))
+
   # rate & review_count 
   # Review 부분은 다음에 구현 (어떻게 얻어오는지만 이해하기)
   width = (driver.find_element_by_class_name('tit-area .inner')).get_attribute('style')
@@ -113,8 +124,10 @@ def get_product_info(big_list, mid_list, small_list):
 
   ## is_discount ~ discount_price 
   discount_price = ((driver.find_element_by_class_name('price-last')).text.split('원')[0]).replace(',','')
-  origin_price = ((driver.find_element_by_class_name('price-dis')).text.split('원')[0]).replace(',','')
-  
+  try:
+    origin_price = ((driver.find_element_by_class_name('price-dis')).text.split('원')[0]).replace(',','')
+  except:
+    origin_price = discount_price
   
   # 할인 X -> origin_price = discount_price
   if origin_price == '': 
@@ -146,7 +159,7 @@ def get_product_info(big_list, mid_list, small_list):
       # 옵션 품절 여부 확인
       option_list = driver.find_elements_by_css_selector('.option-list li')
       option_lists = is_product_sold_out(option_list) 
-
+      print(option_lists)
     except:
       # 단일 옵션인 경우 , option_count = 1
       option_count = 1
@@ -155,11 +168,18 @@ def get_product_info(big_list, mid_list, small_list):
 
       option_name_list.append(option_name)
       option_price_list.append(option_price)  
+
+      # 옵션 품절 여부 확인
+      option_list = driver.find_elements_by_css_selector('.option-list li')
+      option_lists = is_product_sold_out(option_list) 
+
+      print(option_name_list)
   except:
     # 제품 자체 품절 -> top-option.click 불가능 --> 긁어오지 않기 ! (함수 중단)
     driver.back() # 뒤로가기
     sleep(1.0)
     return 0
+
 
 
   # # json data
@@ -195,133 +215,159 @@ def get_product_info(big_list, mid_list, small_list):
  
   # select문 사용해서 brand.name을 찾아서 brand_id 값 받아와서 item_brand_id 에 넣는 로직
   # cursors.fetchone()은 결과 값을 tuple 형태로 반환 -> brand_id_tuple[0] 이 우리가 필요한 실제 값 --> int 타입이기 떄문에 형변환 필요 X
+
   try:
     cursors.execute("select brand_id from brand where brand_name = '" + brand + "';")
     brand_id_tuple = cursors.fetchone()
     brand_id = brand_id_tuple[0]
 
-    # small_list 없을 때 (남성, 건강식품 - 비타민, 일반식품)
-    if big_mid_cat_name in small_list:
-      find_category_id = mid_list    
-    else:
-      find_category_id = small_list
 
-    cursors.execute(" select category_id from category where name = '" + find_category_id + "';")
+    #small_list 없을 때 (남성, 건강식품 - 비타민, 일반식품)
+    # if big_mid_cat_name in no_small_list:
+    #   find_category_id = mid_list    
+    # else:
+    #   find_category_id = small_list
+
+    find_category_id = small_list
+    #cursors.execute("select category_id from category where name = '" + find_category_id + "';")
+    cursors.execute("select category_id from category where name = '생활용품';")
     category_id_tuple = cursors.fetchone()
-    category_id = category_id[0]
+    category_id = category_id_tuple[0]
 
   except: # DB에 없는 브랜드일 경우 --> 안가져옴
     driver.back() # 뒤로가기
     sleep(1.0)
     return 0
+
+  ## 여기까지 성공  
+
   
-  
+  # 옵션 품절인지 확인 --> 재고 넣을때 품절인 옵션을 제외하고 나눠야하기 때문
+  sold_out_count = 0
+  for i in range(len(option_lists)):
+    if option_lists[i] == 'Y':
+      sold_out_count += 1
 
-# 옵션 품절인지 확인 --> 재고 넣을때 품절인 옵션을 제외하고 나눠야하기 때문
-sold_out_count = 0
-for i in range(len(option_lists)):
-  if option_lists[i] == 'Y':
-    sold_out_count += 1
+  print("%")
+  # stock(매장별 재고) : 3500(전체 수량) % 매장 수 % 옵션 개수 
+  # 옵션별 재고량 list : options_quantity_list[i] = item_option.stock_quantity
+  options_quantity_list = [] 
+  stock_st = 3500 / store_count  
+  stock = divmod(stock_st, (option_count - sold_out_count)) 
+  print(stock)
 
-# stock(매장별 재고) : 3500(전체 수량) % 매장 수 % 옵션 개수 
-# 옵션별 재고량 list : options_quantity_list[i] = item_option.stock_quantity
-options_quantity_list = [] 
-stock_st = 3500 / store_count  
-stock = divmod(stock_st, (option_count - sold_out_count)) 
-
-cnt = 0
-for q in range(option_count):
-  if stock[1] != 0.0 : # 나머지가 있는 경우
-    if option_lists[0] == 'Y': # 1번 옵션이 품절인 경우
+  cnt = 0
+  for q in range(option_count):
+    if stock[1] != 0.0 : # 나머지가 있는 경우
+      if option_lists[0] == 'Y': # 1번 옵션이 품절인 경우
+        if option_lists[q] == 'N': # 옵션 품절아닌 경우
+          if cnt == 1:
+            options_quantity_list.append(int(stock[0]+stock[1]))
+          else:
+            options_quantity_list.append(int(stock[0]))
+          cnt += 1   
+        else : # 옵션 품절 -> 재고 0
+          options_quantity_list.append(0)
+          cnt += 1  
+      else :
+        if option_lists[q] == 'N': 
+          if cnt == 0:
+            options_quantity_list.append(int(stock[0]+stock[1]))
+          else:
+            options_quantity_list.append(int(stock[0]))
+        else : # 옵션 품절 -> 재고 0
+          options_quantity_list.append(0)
+    else: # 나머지가 없는 경우
       if option_lists[q] == 'N': # 옵션 품절아닌 경우
-        if cnt == 1:
-          options_quantity_list.append(int(stock[0]+stock[1]))
-        else:
-          options_quantity_list.append(int(stock[0]))
-        cnt += 1   
+        options_quantity_list.append(int(stock[0]))
       else : # 옵션 품절 -> 재고 0
         options_quantity_list.append(0)
-        cnt += 1  
-    else :
-      if option_lists[q] == 'N': 
-        if cnt == 0:
-          options_quantity_list.append(int(stock[0]+stock[1]))
-        else:
-          options_quantity_list.append(int(stock[0]))
-      else : # 옵션 품절 -> 재고 0
-        options_quantity_list.append(0)
-  else: # 나머지가 없는 경우
-    if option_lists[q] == 'N': # 옵션 품절아닌 경우
-      options_quantity_list.append(int(stock[0]))
-    else : # 옵션 품절 -> 재고 0
-      options_quantity_list.append(0)
 
+  print(options_quantity_list)
 
+  ## 여기까지 성공
   ## sql문 생성
   sqls = []
-
   # item 테이블
-  sqls.append("insert into item(barcode, discount_price, is_optional, is_testable, item_img, item_name, item_price, stock_quantity, brand_id) \
-       values(%d, %d, '%s', '%s', '%s', '%s', %d, %d, %d);" %(1, int(discount_price), is_optional_product(option_count), 1, img, name, int(discount_price),int(stock_st) brand_id))
+  try:
+    print(discount_price)
+    sqls.append("insert into item(barcode, discount_price, is_optional, is_testable, item_img, item_name, item_price, stock_quantity, brand_id) \
+      values(%d, %d,'%c','%s','%s','%s',%d, %d, %d);" %(1, int(discount_price),is_optional_product(option_count), 1, img, name, int(discount_price), int(stock_st),brand_id))
+  except:
+    print("item 테이블 입력 실패")
+    driver.back() # 뒤로가기
+    sleep(1.0)
+    return 1
+
+
+  execute_sql(sqls)
+  write_sql(sqls)
+  sqls = []
 
   # item_id 가져오기 (int)
   try:
-    ## cursors.execute("select item_id from item where item_name =  '" + name + "';")
-    cursors.execute("select item_id from item where item_name =  'name';")    
+    cursors.execute("select item_id from item where item_name='" + name + "';")
     item_id_tuple = cursors.fetchone()
     item_id = item_id_tuple[0]
   except: 
+    print("item_id 가져오기 실패")
     driver.back() # 뒤로가기
     sleep(1.0)
-    return 0
+    return 1
 
-  # category_item 테이블
-  sqls.append("insert into category_item(category_id, item_id)\
-      values(%d, %d);" %(category_id, item_id))
-
-  # item_img 테이블 (상품 대표 이미지)
-  for l in range(len(item_img_list)):
-    sqls.append("insert into item_img(item_img, item_id) \
-      values('%s', %d);" %(item_img_list[l],item_id))
+  try:  # category_item 테이블
+    sqls.append("insert into category_item(category_id, item_id)\
+        values(%d, %d);" %(category_id, item_id))
+      # item_img 테이블 (상품 대표 이미지)
+    for l in range(len(item_img_list)):
+      sqls.append("insert into item_img(item_img, item_id) \
+        values('%s', %d);" %(item_img_list[l],item_id))
+  except:
+    print("category_item / item_img_list 테이블 입력 실패")
+    driver.back() # 뒤로가기
+    sleep(1.0)
+    return 1
 
   # item_option 테이블
+  # 단일 옵션인지 확인
   m = 0
-  if is_optional_product(option_count) == 'Y':
-    # 단일 옵션인지 확인
-    if option_count != 1:         
-      for m in range(option_count):
-        if option_lists[m] == 'Y':
-          sqls.append("insert into item_option(item_option_name, stock_quantity, item_id) \
-            values('%s', %d, %d);" %(option_name_list[m],options_quantity_list[m],item_id))
-        else: # 옵션 품절 
-          sqls.append("insert into item_option(item_option_name, stock_quantity, item_id) \
-            values('%s', %d, %d);" %(option_name_list[m],0,item_id))
-    else: # 단일 옵션인 경우
-       sqls.append("insert into item_option(item_option_name, stock_quantity, item_id) \
-            values('%s', %d, %d);" %(option_name_list[m],options_quantity_list[m],item_id))
+  for m in range(option_count):
+    sqls.append("insert into item_option(item_option_name, stock_quantity, item_id) \
+      values('%s', %d, %d);" %(option_name_list[m],(options_quantity_list[m]*35),item_id))
 
-  
-  # product_img 테이블
+  execute_sql(sqls)
+  write_sql(sqls)
+  sqls = []
+
+  ## 여기까지 ok
+
+  # product_img 테이블 
+  b = 0
   for b in range(len(product_img_list)):
-  sqls.append("insert into product_img(product_img, item_id) \
-    values('%s', %d);" %(product_img_list[b],item_id))
+    sqls.append("insert into product_img(product_img, item_id) \
+      values('%s', %d);" %(product_img_list[b],item_id))
 
   # item_option_id 가져오기
   try:
-    cursors.execute("select item_option_id from item where item_id =  '" + item_id + "';")
+    cursors.execute("select item_option_id from item_option where item_id ='" + str(item_id) + "';")
     item_option_id_tuple = cursors.fetchall()
     item_option_id_list = [x[0] for x in item_option_id_tuple] # 각 튜플의 첫번째 element만 list 형태로 추출 [1, 22, 53, 44, 1]
+    print(item_option_id_list)
   except: 
     driver.back() # 뒤로가기
     sleep(1.0)
     return 0
 
   # store_quantity 테이블
+  k, i = 0, 0
   for k in range(len(item_option_id_list)):
     for i in range(1,36): # store : 35 곳
       sqls.append("insert into store_quantity(stock_quantity, item_id, item_option_id, store_id) \
         values(%d, %d, %d, %d);" %(options_quantity_list[k],item_id, item_option_id_list[k],i))
 
+
+  execute_sql(sqls)
+  write_sql(sqls) 
 
   driver.back() # 뒤로가기
   sleep(1.0)
@@ -332,7 +378,7 @@ for q in range(option_count):
 def load_cat_list():
   for big_list in cat_list: # big_list는 cat_list에 String
     for mid_list in cat_list[big_list]: # mid_list는 String
-      driver.get(url+"C040300")
+      driver.get(url+"C030400")
       driver.implicitly_wait(3)
       # 스크롤을 하지 않으면 not clickable 오류가 뜸
       # 따라서, 매 루프마다 모니터 세로 화면의 절반만큼 스크롤을 내릴 수 있도록
@@ -346,7 +392,7 @@ def load_cat_list():
       # cat_index로 tiny_list의 몇 번째 카테고리를 클릭할지 정함
       # ex) 전체 / 기초세트 / 스킨,토너 / 로션 / 에센스,세럼,앰플 / ...        
       if cats:
-        for cat_index in range(1,2):
+        for cat_index in range(1,len(cats_name)+1):
           items = driver.find_elements_by_class_name('prd-list > ul > li > a')          
           height = driver.execute_script('return (window.innerHeight || document.body.clientHeight)')
 
