@@ -15,6 +15,7 @@ result = []
 
 
 # item_option 테이블에서 item_id가 같은 요소들의 합을 구해서 item.stock_quantity 수량 바꾸기
+# 메이크업 카테고리 - item_id 1 ~ 306
 try:
   for i in range(745,1512):
     result = 0
